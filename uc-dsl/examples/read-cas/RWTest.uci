@@ -1,0 +1,25 @@
+load ReadWriteGeneric.
+
+functionality ReadWriteGeneric.ReadWriteGeneric.
+
+prover ["Alt-Ergo" "Z3"].
+
+var pt : port.
+assumption envport_pt : envport func pt.
+
+real.
+send pt@ReadWriteGeneric.IO_Init.I.initialize(15)$func.
+run.
+send pt@ReadWriteGeneric.IO_Init.D.inv(1, Read, None)$func.
+run.
+send ((adv, 2))@ReadWriteGeneric.Sched_Adv.A.resume(1)$func.
+step.
+step.
+step. 
+
+
+send adv_root_port@_@env_root_port.
+run.
+send pt@ReadWriteGeneric.IO_Init.D.inv(2, Read, None)$func.
+run.
+run.
