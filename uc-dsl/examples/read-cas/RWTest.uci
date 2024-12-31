@@ -2,24 +2,47 @@ load ReadWriteGeneric.
 
 functionality ReadWriteGeneric.ReadWriteGeneric.
 
-prover ["Alt-Ergo" "Z3"].
+prover [""].
 
 var pt : port.
 assumption envport_pt : envport func pt.
 
 real.
-send pt@ReadWriteGeneric.IO_Init.I.initialize(15)$func.
+(* Initialize to 5 *)
+send pt@ReadWriteGeneric.IO_Init.I.initialize(5)$func.
 run.
+(* Process #1: Read, run to completion *)
 send pt@ReadWriteGeneric.IO_Init.D.inv(1, Read, None)$func.
 run.
 send ((adv, 2))@ReadWriteGeneric.Sched_Adv.A.resume(1)$func.
-step.
-step.
-step. 
-
-
+run.
+send ((adv, 2))@ReadWriteGeneric.Sched_Adv.A.resume(1)$func.
+run.
+(* Process #1: Write 10, run the initial read only *)
+send pt@ReadWriteGeneric.IO_Init.D.inv(1, Write, Some 10)$func.
+run.
+send ((adv, 2))@ReadWriteGeneric.Sched_Adv.A.resume(1)$func.
+run.
+(* Process #2: Write 15, run to completion *)
 send adv_root_port@_@env_root_port.
 run.
-send pt@ReadWriteGeneric.IO_Init.D.inv(2, Read, None)$func.
+send pt@ReadWriteGeneric.IO_Init.D.inv(2, Write, Some 15)$func.
 run.
+send ((adv, 2))@ReadWriteGeneric.Sched_Adv.A.resume(2)$func.
+run.
+send ((adv, 2))@ReadWriteGeneric.Sched_Adv.A.resume(2)$func.
+run.
+send ((adv, 2))@ReadWriteGeneric.Sched_Adv.A.resume(2)$func.
+run.
+(* Process #1: Continue the write *)
+send env_root_port@_@adv_root_port.
+run.
+send ((adv, 2))@ReadWriteGeneric.Sched_Adv.A.resume(1)$func.
+run.
+(* Note the failing CAS, hence go back to the read *)
+send ((adv, 2))@ReadWriteGeneric.Sched_Adv.A.resume(1)$func.
+run.
+send ((adv, 2))@ReadWriteGeneric.Sched_Adv.A.resume(1)$func.
+run.
+send ((adv, 2))@ReadWriteGeneric.Sched_Adv.A.resume(1)$func.
 run.

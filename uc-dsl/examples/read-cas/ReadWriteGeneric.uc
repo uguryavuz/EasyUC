@@ -94,8 +94,8 @@ functionality ReadWriteGeneric implements IO_Init Sched_Adv {
       var new_vars : local_vars;
       match message with
       | pt@IO_Init.D.inv(p, oper, arg) => { 
-          if (dom p_map p) { fail. }
-          elif (dom s_map p) { fail. }
+          if (p \in p_map) { fail. }
+          elif (p \in s_map) { fail. }
           else {
             match oper with
             | Read => { 
@@ -124,8 +124,8 @@ functionality ReadWriteGeneric implements IO_Init Sched_Adv {
           }
         }
       | Sched_Adv.A.resume(p) => { 
-          if (!dom p_map p) { fail. }
-          elif (!dom s_map p) { fail. }
+          if (p \notin p_map) { fail. }
+          elif (p \notin s_map) { fail. }
           else {
             match (oget s_map.[p]).`pc with
             | R1 => { 
