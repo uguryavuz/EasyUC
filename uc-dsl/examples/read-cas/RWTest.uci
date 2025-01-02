@@ -46,3 +46,12 @@ send ((adv, 2))@ReadWriteGeneric.Sched_Adv.A.resume(1)$func.
 run.
 send ((adv, 2))@ReadWriteGeneric.Sched_Adv.A.resume(1)$func.
 run.
+finish.
+
+ideal.
+send pt@ReadWriteGeneric.IO_Init.I.initialize(5)$func.
+step.
+step.
+(* FAILURE: fails here due to always-failing dummy simulator. *)
+send ((adv, 1))@ReadWriteGeneric.Sched_Adv_Ideal.initialization_ok$func.
+

@@ -201,13 +201,108 @@ functionality ReadWriteGeneric implements IO_Init Sched_Adv {
 }
 
 adversarial Sched_Adv_Ideal {
+  out initialized
+  in initialization_ok
   out suspend
-  in resume(p : process)
+  in linearize(p : process)
+  in allow_return(p : process)
 }
 
 functionality ReadWriteGeneric_Ideal implements IO_Init Sched_Adv_Ideal {
+  (* TODO: send and transition of initial state of ideal functionality with adversarial
+     interface must send adversarial message (to simulator if there is one,
+     otherwise to adversary) *)
   initial state Init {
     match message with
+    | pt@IO_Init.I.initialize(v) => {
+        send Sched_Adv_Ideal.initialized
+        and transition WaitingInit(pt, v).
+      }
+    | * => { fail. }
+    end
+  }
+  state WaitingInit(init_pt : port, init_val : int) {
+    match message with
+    | Sched_Adv_Ideal.initialization_ok => {
+        send IO_Init.I.initialized@init_pt
+        and transition PostInit(init_val, empty, empty).
+      }
+    | * => { fail. }
+    end
+  }
+  state PostInit(cur_val : int, p_map : port_map, is_map : ideal_state_map) {
+    var new_port_map : port_map;
+    var new_is_map : ideal_state_map;
+    match message with
+    | pt@IO_Init.D.inv(p, oper, arg) => {
+        if (p \in p_map) { fail. }
+        elif (p \in is_map) { fail. }
+        else {
+          match oper with
+          | Read => { 
+              match arg with 
+              | Some v => { fail. }
+              | None => { 
+                  new_port_map <- p_map.[p <- pt];
+                  new_is_map <- is_map.[p <- {| idlst_act = Invoked; 
+                                                idlst_op = Read;
+                                                idlst_arg = None; 
+                                                idlst_ret = None |}];
+                  send Sched_Adv_Ideal.suspend
+                  and transition PostInit(cur_val, new_port_map, new_is_map).
+                }
+              end
+            }
+          | Write => { 
+              match arg with 
+              | Some v => { 
+                  new_port_map <- p_map.[p <- pt];
+                  new_is_map <- is_map.[p <- {| idlst_act = Invoked; 
+                                                idlst_op = Write; 
+                                                idlst_arg = Some v; 
+                                                idlst_ret = None |}];
+                  send Sched_Adv_Ideal.suspend
+                  and transition PostInit(cur_val, new_port_map, new_is_map).
+                }
+              | None => { fail. }
+              end
+            }
+          end
+        }
+      }
+    | Sched_Adv_Ideal.linearize(p) => {
+        if (p \notin p_map) { fail. }
+        elif (p \notin is_map) { fail. }
+        elif ((oget is_map.[p]).`idlst_act = Linearized) { fail. }
+        else {
+          match (oget is_map.[p]).`idlst_op with
+          | Read => { 
+              new_is_map <- is_map.[p <- {| (oget is_map.[p]) with 
+                                            idlst_act = Linearized;
+                                            idlst_ret = Some cur_val |}];
+              send Sched_Adv_Ideal.suspend
+              and transition PostInit(cur_val, p_map, new_is_map).
+            }
+          | Write => { 
+              new_is_map <- is_map.[p <- {| (oget is_map.[p]) with 
+                                            idlst_act = Linearized |}];
+              send Sched_Adv_Ideal.suspend
+              and transition PostInit(oget (oget is_map.[p]).`idlst_arg, p_map, new_is_map).
+            }
+          end
+        }
+      }
+    | Sched_Adv_Ideal.allow_return(p) => {
+        if (p \notin p_map) { fail. }
+        elif (p \notin is_map) { fail. }
+        elif ((oget is_map.[p]).`idlst_act <> Linearized) { fail. }
+        else {
+          new_port_map <- rem p_map p;
+          new_is_map <- rem is_map p;
+          send IO_Init.D.rsp(p, (oget is_map.[p]).`idlst_op, (oget is_map.[p]).`idlst_ret)@(oget p_map.[p])
+          and transition PostInit(cur_val, new_port_map, new_is_map).
+        }
+      }
     | * => { fail. }
     end
   }

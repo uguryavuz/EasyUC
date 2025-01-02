@@ -12,6 +12,14 @@ op init_vars = {| x = None |}.
 type proc_state = { pc : pc_id; arg : int option ; vars : local_vars }. 
 type state_map = (process, proc_state) fmap.
 
+(* For ideal *)
+type activity = [Invoked | Linearized].
+type ideal_state = { idlst_act : activity; 
+                     idlst_op  : operation;
+                     idlst_arg : int option;
+                     idlst_ret : int option }.
+type ideal_state_map = (process, ideal_state) fmap.
+
 (* Simplification hints *)
 hint simplify get_set_sameE.
 hint simplify set_set_eqE.
