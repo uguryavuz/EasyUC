@@ -6,15 +6,18 @@ type operation = [Read | Write].
 type port_map = (process, port) fmap.
 
 (* For real *)
-type pc_id = [R1 | R2 | W1 | W2 | W3].
+type real_status = [Real_Invoked | R1 | W1 | W2 | Real_Terminated].
 type local_vars = { x : int option }.
 op init_vars = {| x = None |}.
-type proc_state = { pc : pc_id; arg : int option ; vars : local_vars }. 
-type state_map = (process, proc_state) fmap.
+type real_state = { rlst_status : real_status;
+                    rlst_op : operation;
+                    rlst_arg : int option;
+                    rlst_vars : local_vars }.
+type real_state_map = (process, real_state) fmap.
 
 (* For ideal *)
-type activity = [Invoked | Linearized].
-type ideal_state = { idlst_act : activity; 
+type ideal_status = [Ideal_Invoked | Ideal_Linearized].
+type ideal_state = { idlst_status : ideal_status; 
                      idlst_op  : operation;
                      idlst_arg : int option;
                      idlst_ret : int option }.
