@@ -248,7 +248,7 @@ functionality RW_Ideal implements IO Scheduler_Ideal {
           | Write => { 
               new_is_map <- is_map.[p <- {| (oget is_map.[p]) with idlst_status = Ideal_Linearized |}];
               send Scheduler_Ideal.suspend
-              and transition Final(cur_val, p_map, new_is_map).
+              and transition Final(oget (oget is_map.[p]).`idlst_arg, p_map, new_is_map).
             }
           end
         } 
