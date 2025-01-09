@@ -607,6 +607,38 @@ smt(mem_range rfi_valid_lt_par_indices_implies_lt_param_adv_pi_begins).
 smt(mem_range rfi_valid_lt_par_indices_implies_lt_param_adv_pi_begins).
 qed.
 
+lemma disjoint_in_guard_with_all_implies_disjoint_add_rest_with_change
+      (in_guard : int fset) :
+  disjoint in_guard (adv_pis_rf_info rf_info) =>
+  disjoint (in_guard `|` rest_adv_pis) change_par_adv_pis.
+proof.
+move => disj_in_guard_all.
+rewrite disjoint_with_disjoint_union_add_first_disjoint_with_second //.
+by rewrite fsetUC union_change_rest_eq_all_adv_pis_of_rf_info.
+by rewrite disjoint_sym 1:disjoint_change_rest.
+qed.
+
+lemma disjoint_in_guard_with_all_implies_disjoint_with_change
+      (in_guard : int fset) :
+  disjoint in_guard (adv_pis_rf_info rf_info) =>
+  disjoint in_guard change_par_adv_pis.
+proof.
+rewrite -union_change_rest_eq_all_adv_pis_of_rf_info =>
+  disjoint_in_guard_all.
+by rewrite (disjoint_with_union_implies_disjoint_with_first rest_adv_pis).
+qed.
+
+lemma disjoint_in_guard_with_all_implies_disjoint_with_rest
+      (in_guard : int fset) :
+  disjoint in_guard (adv_pis_rf_info rf_info) =>
+  disjoint in_guard rest_adv_pis.
+proof.
+rewrite -union_change_rest_eq_all_adv_pis_of_rf_info =>
+  disjoint_in_guard_all.
+by rewrite
+   (disjoint_with_union_implies_disjoint_with_second change_par_adv_pis).
+qed.
+
 (* composed environment, made out of Rest and Env *)
 
 (* dummy messages between stubs of CompEnv *)
@@ -4709,7 +4741,13 @@ qed.
    note that the assumption about the bound relating to these modules
    will be an application of the security of the parameter as long as
 
-     disjoint (change_par_adv_pis `|` rest_adv_pis) in_guard' *)
+     disjoint in_guard' (adv_pis_rf_info rf_info),
+
+   so that by lemma
+   disjoint_in_guard_with_all_implies_disjoint_add_rest_with_change
+   it follows that
+   disjoint (in_guard' `|` rest_adv_pis) change_par_adv_pis,
+   and so the security of the parameter is applicable *)
 
 lemma composition
       (Env <: ENV{-MI, -CompGlobs}) (Rest <: FUNC{-MI, -CompGlobs, -Env})
