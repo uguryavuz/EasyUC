@@ -68,22 +68,3 @@ proof.
   + by apply get_set_neqE.
 qed.
 hint simplify nin_rem_set_id.
-
-(* Holding area *)
-lemma oget_set_eq (m : ('a, 'b) fmap, x : 'a, y : 'b) :
-  oget m.[x <- y].[x] = y.
-proof.
-by rewrite get_set_sameE.
-qed.
-
-lemma set_set_last (m : ('a, 'b) fmap, x : 'a, y1 : 'b, y2 : 'b) :
-  m.[x <- y1].[x <- y2] = m.[x <- y2].
-proof.
-rewrite set_set_eqE //.
-qed.
-
-lemma mem_empty_false ['a 'b] (x : 'a) :
-  x \notin empty<:'a, 'b>.
-proof.
-rewrite mem_empty //.
-qed.

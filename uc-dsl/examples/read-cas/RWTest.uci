@@ -69,9 +69,82 @@ run.
 finish.
 
 ideal.
-send pt@ReadWriteGeneric.IO_Init.I.initialize(5)$func.
+(* Initialize to 5 *)
+send pt@ReadWriteGeneric.IO.D.init_with(5)$func.
+run.
+send ((adv, 2))@ReadWriteGeneric.Scheduler_Real.A.init_ok$func.
+run.
+(* Process #1: Read, run to completion *)
+send pt@ReadWriteGeneric.IO.D.inv(1, Read, None)$func.
+run.
+(* -- Move from invoked to R1 *)
+send ((adv, 2))@ReadWriteGeneric.Scheduler_Real.A.resume(1)$func.
+run.
+(* -- R1 to termination *)
+send ((adv, 2))@ReadWriteGeneric.Scheduler_Real.A.resume(1)$func.
+run.
+(* -- Return value at termination back to environment *)
+send ((adv, 2))@ReadWriteGeneric.Scheduler_Real.A.resume(1)$func.
+run.
+(* Process #1: Write 10, run the initial read only *)
+send pt@ReadWriteGeneric.IO.D.inv(1, Write, Some 10)$func.
+run.
+(* -- Move from invoked to W1 *)
+send ((adv, 2))@ReadWriteGeneric.Scheduler_Real.A.resume(1)$func.
+run.
+(* -- W1 to W2 *)
+send ((adv, 2))@ReadWriteGeneric.Scheduler_Real.A.resume(1)$func.
+run.
+(* Process #2: Write 15, run to completion *)
+send adv_root_port@_@env_root_port.
+run.
+send pt@ReadWriteGeneric.IO.D.inv(2, Write, Some 15)$func.
+run.
+(* -- Move from invoked to W1 *)
+send ((adv, 2))@ReadWriteGeneric.Scheduler_Real.A.resume(2)$func.
+run.
+(* -- W1 to W2 *)
+send ((adv, 2))@ReadWriteGeneric.Scheduler_Real.A.resume(2)$func.
+run.
+(* -- W2 to termination *)
+send ((adv, 2))@ReadWriteGeneric.Scheduler_Real.A.resume(2)$func.
 step.
 step.
-(* FAILURE: fails here due to always-failing dummy simulator. *)
-send ((adv, 1))@ReadWriteGeneric.Scheduler_Real_Ideal.initialization_ok$func.
+step.
+(* -- -- CAS will succeed, so mark process as having terminated in the simulated real-state map, and ask ideal to linearize *)
+step.
+step.
+step.
+step.
+step.
+step.
+(* -- -- Ideal can indeed linearize; linearize by updated ideal-state map, current value; and let simulator know *)
+step.
+step.
+step.
+step.
+(* -- -- Simulator should now update the current value it keeps track of as well; and then send a suspend message to the real adversary, 
+   pretending to be a computational step in the operation effectuation *)
+step.
+step.
+step.
+(* -- Return value at termination back to environment *)
+send ((adv, 2))@ReadWriteGeneric.Scheduler_Real.A.resume(2)$func.
+run.
+(* Process #1: Continue the write *)
+send env_root_port@_@adv_root_port.
+run.
+(* -- W2 to W1; note the failing CAS and hence the going back *)
+send ((adv, 2))@ReadWriteGeneric.Scheduler_Real.A.resume(1)$func.
+run.
+(* -- W1 to W2 *)
+send ((adv, 2))@ReadWriteGeneric.Scheduler_Real.A.resume(1)$func.
+run.
+(* -- W2 to termination *)
+send ((adv, 2))@ReadWriteGeneric.Scheduler_Real.A.resume(1)$func.
+run.
+(* -- Return value at termination back to environment *)
+send ((adv, 2))@ReadWriteGeneric.Scheduler_Real.A.resume(1)$func.
+run.
+finish.
 

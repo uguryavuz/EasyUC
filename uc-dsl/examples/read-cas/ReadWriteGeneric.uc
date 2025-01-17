@@ -8,9 +8,7 @@ direct IO' {
   out rsp(p : process, oper : operation, v : int option)@pt
 }
 
-direct IO {
-  D : IO'
-}
+direct IO {D : IO'}
 
 adversarial Scheduler_Real' {
   out init_req(v : int)
@@ -176,8 +174,9 @@ functionality RW_Real implements IO Scheduler_Real {
 adversarial Scheduler_Ideal {
   out init_req(v : int)
   in init_ok
-  out suspend
+  out invoked(p : process, idst : ideal_state)
   in linearize(p : process)
+  out linearized(p : process, idst : ideal_state)
   in return_ok(p : process)
 }
 
@@ -215,7 +214,7 @@ functionality RW_Ideal implements IO Scheduler_Ideal {
               | None => { 
                   new_port_map <- p_map.[p <- pt];
                   new_is_map <- is_map.[p <- {| idlst_status = Ideal_Invoked; idlst_op = Read; idlst_arg = None; idlst_ret = None |}];
-                  send Scheduler_Ideal.suspend
+                  send Scheduler_Ideal.invoked(p, {| idlst_status = Ideal_Invoked; idlst_op = Read; idlst_arg = None; idlst_ret = None |})
                   and transition Final(cur_val, new_port_map, new_is_map).
                 }
               end
@@ -226,7 +225,7 @@ functionality RW_Ideal implements IO Scheduler_Ideal {
               | Some v => { 
                   new_port_map <- p_map.[p <- pt];
                   new_is_map <- is_map.[p <- {| idlst_status = Ideal_Invoked; idlst_op = Write; idlst_arg = Some v; idlst_ret = None |}];
-                  send Scheduler_Ideal.suspend
+                  send Scheduler_Ideal.invoked(p, {| idlst_status = Ideal_Invoked; idlst_op = Write; idlst_arg = Some v; idlst_ret = None |})
                   and transition Final(cur_val, new_port_map, new_is_map).
                 }
               end  
@@ -242,12 +241,12 @@ functionality RW_Ideal implements IO Scheduler_Ideal {
           match (oget is_map.[p]).`idlst_op with
           | Read => { 
               new_is_map <- is_map.[p <- {| (oget is_map.[p]) with idlst_status = Ideal_Linearized; idlst_ret = Some cur_val |}];
-              send Scheduler_Ideal.suspend
+              send Scheduler_Ideal.linearized(p, {| (oget is_map.[p]) with idlst_status = Ideal_Linearized; idlst_ret = Some cur_val |})
               and transition Final(cur_val, p_map, new_is_map).
             }
           | Write => { 
               new_is_map <- is_map.[p <- {| (oget is_map.[p]) with idlst_status = Ideal_Linearized |}];
-              send Scheduler_Ideal.suspend
+              send Scheduler_Ideal.linearized(p, {| (oget is_map.[p]) with idlst_status = Ideal_Linearized |})
               and transition Final(oget (oget is_map.[p]).`idlst_arg, p_map, new_is_map).
             }
           end
@@ -269,9 +268,111 @@ functionality RW_Ideal implements IO Scheduler_Ideal {
   }
 }
 
+(* Matched incoming messages should be as follows: *)
+(* 
+  Scheduler_Ideal.invoked,
+  Scheduler_Ideal.linearized,
+  RW_Real.Scheduler_Real.A.resume 
+
+  --- init ---
+  Scheduler_Ideal.init_req,
+  RW_Real.Scheduler_Real.A.init_ok
+*)
+(* Outgoing messages should be as follows: *)
+(* 
+  RW_Real.Scheduler_Real.A.suspend,
+  Scheduler_Ideal.return_ok,
+  Scheduler_Ideal.linearize,
+
+  --- init ---
+  Scheduler_Ideal.init_ok,
+  RW_Real.Scheduler_Real.A.init_req) *)
+
 simulator Sim uses Scheduler_Ideal simulates RW_Real {
   initial state Init {
+    match message with 
+    | Scheduler_Ideal.init_req(v) => { 
+        send RW_Real.Scheduler_Real.A.init_req(v)
+        and transition InitPending(v).
+      }
+    | * => { fail. }
+    end
+  }
+  state InitPending(init_val : int) {
     match message with
+    | RW_Real.Scheduler_Real.A.init_ok => {
+        send Scheduler_Ideal.init_ok
+        and transition Final(init_val, empty).
+      }
+    | * => { fail. }
+    end
+  }
+  state Final(cur_val : int, sim_rs_map : real_state_map) {
+    var new_sim_rs_map : real_state_map;
+    match message with
+    | Scheduler_Ideal.invoked(p, idst) => {
+        new_sim_rs_map <- sim_rs_map.[p <- {| rlst_status = Real_Invoked; rlst_op = idst.`idlst_op; rlst_arg = idst.`idlst_arg; rlst_vars = init_vars |}];
+        send RW_Real.Scheduler_Real.A.suspend
+        and transition Final(cur_val, new_sim_rs_map).
+      }
+    | RW_Real.Scheduler_Real.A.resume(p) => {
+        (* TODO: Should you check p \in sim_rs_map? *)
+        match (oget sim_rs_map.[p]).`rlst_status with
+        | Real_Invoked => { 
+            match (oget sim_rs_map.[p]).`rlst_op with
+            | Read => { 
+                new_sim_rs_map <- sim_rs_map.[p <- {| (oget sim_rs_map.[p]) with rlst_status = R1 |}];
+                send RW_Real.Scheduler_Real.A.suspend
+                and transition Final(cur_val, new_sim_rs_map).
+              }
+            | Write => { 
+                new_sim_rs_map <- sim_rs_map.[p <- {| (oget sim_rs_map.[p]) with rlst_status = W1 |}];
+                send RW_Real.Scheduler_Real.A.suspend
+                and transition Final(cur_val, new_sim_rs_map).
+              }
+            end
+          }
+        | R1 => { 
+            new_sim_rs_map <- sim_rs_map.[p <- {| (oget sim_rs_map.[p]) with rlst_status = Real_Terminated; rlst_vars = {| x = Some cur_val |} |}];
+            send Scheduler_Ideal.linearize(p)
+            and transition Final(cur_val, new_sim_rs_map).
+          }
+        | W1 => { 
+            new_sim_rs_map <- sim_rs_map.[p <- {| (oget sim_rs_map.[p]) with rlst_status = W2; rlst_vars = {| x = Some cur_val |} |}];
+            send RW_Real.Scheduler_Real.A.suspend
+            and transition Final(cur_val, new_sim_rs_map).
+          }
+        | W2 => { 
+            if (oget (oget sim_rs_map.[p]).`rlst_vars.`x = cur_val) {
+              new_sim_rs_map <- sim_rs_map.[p <- {| (oget sim_rs_map.[p]) with rlst_status = Real_Terminated |}];
+              send Scheduler_Ideal.linearize(p)
+              and transition Final(cur_val, new_sim_rs_map).
+            }
+            else {
+              new_sim_rs_map <- sim_rs_map.[p <- {| (oget sim_rs_map.[p]) with rlst_status = W1 |}];
+              send RW_Real.Scheduler_Real.A.suspend
+              and transition Final(cur_val, new_sim_rs_map).
+            }
+          }
+        | Real_Terminated => { 
+            new_sim_rs_map <- rem sim_rs_map p;
+            send Scheduler_Ideal.return_ok(p)
+            and transition Final(cur_val, new_sim_rs_map).
+          }
+        end
+      }
+    | Scheduler_Ideal.linearized(p, idst) => {
+        match (oget sim_rs_map.[p]).`rlst_op with
+        | Read => {
+            send RW_Real.Scheduler_Real.A.suspend
+            and transition Final(cur_val, sim_rs_map).
+          }
+        | Write => {
+            send RW_Real.Scheduler_Real.A.suspend
+            and transition Final(oget idst.`idlst_arg, sim_rs_map).
+          }
+        end
+      }
     | * => { fail. }
     end
   }
